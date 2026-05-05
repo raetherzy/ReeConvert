@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { FileUploader } from "@/components/tools/FileUploader"
-import { convertAudio } from "@/lib/converters/media"
+import { convertAudio, setFFmpegMode, isMultiThreadSupported } from "@/lib/converters/media"
 import { downloadBlob } from "@/lib/converters/pdf"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Music, Download, Loader2 } from "lucide-react"
+import { Music, Download, Loader2, Cpu } from "lucide-react"
 import { motion } from "framer-motion"
 
 const formats = [
@@ -24,6 +24,14 @@ export default function Content() {
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<{ data: Uint8Array; name: string } | null>(null)
   const [status, setStatus] = useState("")
+  const [multiCore, setMultiCore] = useState(false)
+
+  useEffect(() => {
+    if (isMultiThreadSupported()) {
+      setMultiCore(true)
+      setFFmpegMode(true)
+    }
+  }, [])
 
   const handleFile = useCallback((f: File[]) => {
     if (f.length) { setFile(f[0]); setResult(null) }
@@ -61,6 +69,20 @@ export default function Content() {
                     <Button key={f.value} variant={format === f.value ? "default" : "outline"} size="sm" onClick={() => setFormat(f.value)}>{f.label}</Button>
                   ))}
                 </div>
+                {isMultiThreadSupported() && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/30">
+                    <Cpu className="size-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Multi-core:</span>
+                    <button
+                      onClick={() => { setMultiCore(!multiCore); setFFmpegMode(!multiCore) }}
+                      className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                        multiCore ? "bg-emerald-500/10 text-emerald-500 font-medium" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {multiCore ? "ON (faster)" : "OFF"}
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex justify-center">
                 <Button size="lg" className="gradient-brand text-white shadow-xl shadow-brand-500/25 h-12 px-10 rounded-xl text-base" onClick={convert} disabled={processing}>

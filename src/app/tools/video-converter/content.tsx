@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { FileUploader } from "@/components/tools/FileUploader"
-import { convertVideo } from "@/lib/converters/media"
+import { convertVideo, setFFmpegMode, isMultiThreadSupported } from "@/lib/converters/media"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { VideoIcon, Download, Loader2, X } from "lucide-react"
+import { VideoIcon, Download, Loader2, X, Cpu } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import JSZip from "jszip"
 
@@ -22,6 +22,14 @@ export default function Content() {
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<{ data: Uint8Array; name: string }[] | null>(null)
   const [status, setStatus] = useState("")
+  const [multiCore, setMultiCore] = useState(false)
+
+  useEffect(() => {
+    if (isMultiThreadSupported()) {
+      setMultiCore(true)
+      setFFmpegMode(true)
+    }
+  }, [])
 
   const handleFiles = useCallback((f: File[]) => {
     setFiles(f)
@@ -131,7 +139,21 @@ export default function Content() {
                       <Button key={f.value} variant={format === f.value ? "default" : "outline"} size="sm" onClick={() => setFormat(f.value)}>{f.label}</Button>
                     ))}
                   </div>
-                  <p className="text-xs text-amber-500">Browser conversion is slow for large videos. Best for clips under 50 MB each.</p>
+                  {isMultiThreadSupported() && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-border/30">
+                      <Cpu className="size-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Multi-core:</span>
+                      <button
+                        onClick={() => { setMultiCore(!multiCore); setFFmpegMode(!multiCore) }}
+                        className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                          multiCore ? "bg-emerald-500/10 text-emerald-500 font-medium" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {multiCore ? "ON (faster)" : "OFF"}
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs text-amber-500">MOV/MP4 same codec uses instant remux. Other formats re-encode.</p>
                 </div>
 
                 <div className="flex justify-center">
