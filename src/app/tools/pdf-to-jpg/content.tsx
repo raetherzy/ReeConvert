@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { FileUploader } from "@/components/tools/FileUploader"
-import { pdfToImages } from "@/lib/converters/image"
+import { pdfToImages } from "@/lib/converters/pdf-image"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { FileImage, Download, Loader2, ImageIcon } from "lucide-react"
