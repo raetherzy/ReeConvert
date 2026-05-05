@@ -15,9 +15,9 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" disabled>
+      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full">
         <Sun className="size-5" />
-      </Button>
+      </span>
     )
   }
 
@@ -27,6 +27,7 @@ export function ThemeToggle() {
       size="icon"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       className="rounded-full hover:bg-accent/10"
+      suppressHydrationWarning
     >
       {theme === "dark" ? (
         <Sun className="size-5 text-yellow-400" />

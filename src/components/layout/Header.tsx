@@ -54,10 +54,13 @@ export function Header() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger className="md:hidden">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Menu className="size-5" />
-              </Button>
+            <SheetTrigger
+              className="md:hidden"
+              render={
+                <Button variant="ghost" size="icon" className="rounded-full" />
+              }
+            >
+              <Menu className="size-5" />
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] pt-12">
               <nav className="flex flex-col gap-1">
