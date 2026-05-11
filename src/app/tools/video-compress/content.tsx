@@ -16,15 +16,12 @@ export default function Content() {
   const [result, setResult] = useState<{ data: Uint8Array; name: string } | null>(null)
   const [crf, setCrf] = useState(28)
   const [status, setStatus] = useState("")
-  const [multiCore, setMultiCore] = useState(false)
+  const [multiCore, setMultiCore] = useState(() => isMultiThreadSupported())
   const originalSize = file?.size ?? 0
 
   useEffect(() => {
-    if (isMultiThreadSupported()) {
-      setMultiCore(true)
-      setFFmpegMode(true)
-    }
-  }, [])
+    setFFmpegMode(multiCore)
+  }, [multiCore])
 
   const handleFile = useCallback((f: File[]) => {
     if (f.length) { setFile(f[0]); setResult(null) }
@@ -37,10 +34,10 @@ export default function Content() {
       return
     }
     setProcessing(true)
-    setProgress(10)
+    setProgress(0)
     setStatus("Loading FFmpeg (~31 MB)...")
     try {
-      const r = await compressVideo(file, crf)
+      const r = await compressVideo(file, crf, (pct) => setProgress(Math.min(pct, 99)))
       setProgress(100)
       setResult(r)
       setStatus("")
@@ -77,7 +74,7 @@ export default function Content() {
                     <Cpu className="size-4 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">Multi-core:</span>
                     <button
-                      onClick={() => { setMultiCore(!multiCore); setFFmpegMode(!multiCore) }}
+                      onClick={() => setMultiCore(!multiCore)}
                       className={`text-xs px-3 py-1 rounded-full transition-colors ${
                         multiCore ? "bg-emerald-500/10 text-emerald-500 font-medium" : "text-muted-foreground hover:text-foreground"
                       }`}

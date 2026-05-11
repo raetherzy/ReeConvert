@@ -214,15 +214,6 @@ export const tools: Tool[] = [
     color: "from-violet-500 to-fuchsia-500",
   },
   {
-    id: "video-converter",
-    title: "Video Converter",
-    description: "Convert MOV to MP4, WEBM",
-    icon: VideoIcon,
-    href: "/tools/video-converter",
-    category: "video",
-    color: "from-red-500 to-orange-500",
-  },
-  {
     id: "video-compress",
     title: "Video Compress",
     description: "Reduce video file size",

@@ -99,65 +99,38 @@ export async function extractAudio(
   return { data, name: `${baseName}_audio.${outputFormat}` }
 }
 
-const sameContainerFamily = (a: string, b: string): boolean => {
-  const mp4Family = new Set(["mp4", "mov", "m4v", "3gp", "3g2"])
-  return a === b || (mp4Family.has(a) && mp4Family.has(b))
-}
-
-export async function convertVideo(
-  file: File,
-  outputFormat: "mp4" | "webm" | "mov" | "avi"
-): Promise<{ data: Uint8Array; name: string }> {
-  const ff = await getFFmpeg()
-  const inputExt = file.name.split(".").pop()?.toLowerCase() || "mp4"
-  const inputName = `input.${inputExt}`
-  const outputName = `output.${outputFormat}`
-
-  await ff.writeFile(inputName, await fetchFile(file))
-
-  if (sameContainerFamily(inputExt, outputFormat)) {
-    try {
-      await ff.exec(["-i", inputName, "-c", "copy", "-map", "0", "-y", outputName])
-      const data = (await ff.readFile(outputName)) as Uint8Array
-      const baseName = file.name.replace(/\.[^.]+$/, "")
-      return { data, name: `${baseName}.${outputFormat}` }
-    } catch {
-      await ff.writeFile(inputName, await fetchFile(file))
-    }
-  }
-
-  const codecArgs: string[] = []
-  if (outputFormat === "mp4" || outputFormat === "mov") {
-    codecArgs.push("-c:v", "libx264", "-preset", "ultrafast", "-crf", "23")
-  } else if (outputFormat === "webm") {
-    codecArgs.push("-c:v", "libvpx-vp9", "-b:v", "1M", "-deadline", "realtime")
-  }
-
-  await ff.exec(["-i", inputName, ...codecArgs, "-c:a", "aac", "-b:a", "128k", "-y", outputName])
-  const data = (await ff.readFile(outputName)) as Uint8Array
-  const baseName = file.name.replace(/\.[^.]+$/, "")
-  return { data, name: `${baseName}.${outputFormat}` }
-}
-
 export async function compressVideo(
   file: File,
-  crf: number = 28
+  crf: number = 28,
+  onProgress?: (percent: number) => void
 ): Promise<{ data: Uint8Array; name: string }> {
   const ff = await getFFmpeg()
   const ext = file.name.split(".").pop()?.toLowerCase() || "mp4"
   const inputName = `input.${ext}`
   const outputName = `output.${ext}`
 
-  await ff.writeFile(inputName, await fetchFile(file))
+  let handler: ((e: { progress: number; time: number }) => void) | null = null
+  if (onProgress) {
+    handler = ({ progress }) => onProgress(Math.round(progress * 100))
+    ff.on("progress", handler)
+  }
 
-  await ff.exec([
-    "-i", inputName,
-    "-c:v", "libx264", "-preset", "ultrafast", "-crf", String(crf),
-    "-c:a", "aac", "-b:a", "96k",
-    "-y", outputName,
-  ])
+  try {
+    await ff.writeFile(inputName, await fetchFile(file))
 
-  const data = (await ff.readFile(outputName)) as Uint8Array
-  const baseName = file.name.replace(/\.[^.]+$/, "")
-  return { data, name: `${baseName}_compressed.${ext}` }
+    await ff.exec([
+      "-i", inputName,
+      "-c:v", "libx264", "-preset", "ultrafast", "-crf", String(crf),
+      "-c:a", "aac", "-b:a", "96k",
+      "-tune", "zerolatency",
+      "-movflags", "+faststart",
+      outputName,
+    ])
+
+    const data = (await ff.readFile(outputName)) as Uint8Array
+    const baseName = file.name.replace(/\.[^.]+$/, "")
+    return { data, name: `${baseName}_compressed.${ext}` }
+  } finally {
+    if (handler) ff.off("progress", handler)
+  }
 }
