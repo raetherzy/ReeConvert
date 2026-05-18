@@ -24,6 +24,7 @@ export default function Content() {
   const [results, setResults] = useState<{ data: Uint8Array; name: string }[] | null>(null)
   const [status, setStatus] = useState("")
   const [elapsed, setElapsed] = useState(0)
+  const [errorMsg, setErrorMsg] = useState("")
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function Content() {
     if (files.length === 0) return
 
     setProcessing(true)
+    setErrorMsg("")
     setElapsed(0)
     setProgress(2)
     setStatus("Warming up server...")
@@ -126,14 +128,21 @@ export default function Content() {
         converted.push({ data, name: `${baseName}.${format}` })
       } catch (err) {
         if ((err as Error).name === "AbortError") break
-        console.error("Failed:", f.name, err)
+        const msg = (err as Error).message || String(err)
+        console.error("Failed:", f.name, msg)
+        setErrorMsg(`Failed on "${f.name}": ${msg}`)
       }
     }
 
     abortRef.current = null
     setProgress(100)
-    setResults(converted)
-    setStatus("")
+    if (converted.length > 0) {
+      setResults(converted)
+    } else if (errorMsg) {
+      setStatus(errorMsg)
+    } else {
+      setStatus("Server unreachable. Check your connection and try again.")
+    }
     setProcessing(false)
   }
 
@@ -207,6 +216,10 @@ export default function Content() {
                   </div>
                   <p className="text-xs text-emerald-600">Processed on 4-core cloud server. Native FFmpeg, much faster than browser.</p>
                 </div>
+
+                {errorMsg && !processing && (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorMsg}</div>
+                )}
 
                 <div className="flex justify-center gap-2">
                   <Button size="lg" className="gradient-brand text-white shadow-xl shadow-brand-500/25 h-12 px-10 rounded-xl text-base" onClick={convert} disabled={processing}>
