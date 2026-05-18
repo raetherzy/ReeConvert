@@ -14,6 +14,7 @@ const navLinks = [
   { href: "/tools/image-converter", label: "Images" },
   { href: "/tools/document-converter", label: "Documents" },
   { href: "/tools/audio-converter", label: "Audio" },
+  { href: "/tools/video-converter", label: "Video" },
 ]
 
 export function Header() {

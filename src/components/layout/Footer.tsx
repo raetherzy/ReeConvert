@@ -17,6 +17,7 @@ const footerLinks = {
     links: [
       { href: "/tools/merge-pdf", label: "PDF Tools" },
       { href: "/tools/image-converter", label: "Image Tools" },
+      { href: "/tools/video-converter", label: "Video Tools" },
       { href: "/tools/audio-converter", label: "Audio Tools" },
       { href: "/tools/ocr", label: "OCR" },
     ],
