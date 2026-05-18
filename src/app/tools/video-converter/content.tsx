@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { FileUploader } from "@/components/tools/FileUploader"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { VideoIcon, Download, Loader2, X, Clock } from "lucide-react"
+import { VideoIcon, Download, X, Clock, Zap, ArrowRight } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import JSZip from "jszip"
 
@@ -37,11 +37,19 @@ export default function Content() {
   const handleFiles = useCallback((f: File[]) => {
     setFiles(f)
     setResults(null)
+    setErrorMsg("")
   }, [])
 
   const removeFile = (i: number) => {
     setFiles((prev) => prev.filter((_, idx) => idx !== i))
   }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const totalSize = files.reduce((s, f) => s + f.size, 0)
 
   const convert = async () => {
     if (files.length === 0) return
@@ -61,6 +69,7 @@ export default function Content() {
       setStatus(`Uploading ${i + 1} of ${files.length}: ${f.name}`)
 
       try {
+        setStatus(`Converting ${i + 1} of ${files.length}: ${f.name}`)
         const formData = new FormData()
         formData.append("file", f)
 
@@ -83,8 +92,6 @@ export default function Content() {
         let fileId: string | null = null
         let hasError: string | null = null
 
-        setStatus(`Converting ${i + 1} of ${files.length}: ${f.name}`)
-
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -106,10 +113,10 @@ export default function Content() {
                 const overall = fileBase + Math.round(msg.progress / files.length)
                 setProgress(Math.min(overall, 99))
                 if (msg.speed) {
-                  setStatus(`Converting: ${f.name} (${msg.speed}x speed)`)
+                  setStatus(`Converting: ${f.name} · ${msg.speed}x`)
                 }
               }
-            } catch { /* ignore malformed lines */ }
+            } catch { /* ignore */ }
           }
         }
 
@@ -130,7 +137,7 @@ export default function Content() {
         if ((err as Error).name === "AbortError") break
         const msg = (err as Error).message || String(err)
         console.error("Failed:", f.name, msg)
-        setErrorMsg(`Failed on "${f.name}": ${msg}`)
+        setErrorMsg(`"${f.name}": ${msg}`)
       }
     }
 
@@ -175,124 +182,228 @@ export default function Content() {
     setStatus("")
   }
 
-  return (
-    <div className="space-y-6">
-      {!results && (
-        <>
-          <FileUploader
-            onFilesSelected={handleFiles}
-            accept="video/*"
-            multiple
-            label="Drop your video files here"
-            hint="Convert between MP4, MOV, WEBM. Files are processed on a fast cloud server. Max 200 MB per file."
-          />
+  /* ═══════ Processing State ═══════ */
+  if (processing) {
+    return (
+      <div className="flex items-center justify-center min-h-[420px]">
+        <motion.div
+          className="w-full max-w-md space-y-6 text-center"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          {/* Animated icon */}
+          <motion.div
+            className="mx-auto flex size-20 items-center justify-center rounded-2xl bg-amber-500/10"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+          >
+            <Zap className="size-10 text-amber-500" />
+          </motion.div>
 
-          <AnimatePresence>
-            {files.length > 0 && (
-              <motion.div className="space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <div className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3">
-                  <p className="text-sm font-medium">{files.length} file(s) selected</p>
-                  <button onClick={() => setFiles([])} className="text-xs text-muted-foreground hover:text-destructive">Clear all</button>
-                </div>
+          <div>
+            <h3 className="text-lg font-semibold">Processing Video</h3>
+            <p className="text-sm text-muted-foreground mt-1">{status}</p>
+          </div>
 
-                <div className="space-y-2 max-h-48 overflow-auto">
-                  {files.map((f, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2">
-                      <span className="text-xs truncate flex-1">{f.name}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                      <button onClick={() => removeFile(i)} className="shrink-0 text-muted-foreground hover:text-destructive">
-                        <X className="size-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3">
-                  <p className="text-sm font-medium">Convert to</p>
-                  <div className="flex gap-2">
-                    {formats.map((f) => (
-                      <Button key={f.value} variant={format === f.value ? "default" : "outline"} size="sm" onClick={() => setFormat(f.value)}>{f.label}</Button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-emerald-600">Processed on 4-core cloud server. Native FFmpeg, much faster than browser.</p>
-                </div>
-
-                {errorMsg && !processing && (
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorMsg}</div>
-                )}
-
-                <div className="flex justify-center gap-2">
-                  <Button size="lg" className="gradient-brand text-white shadow-xl shadow-brand-500/25 h-12 px-10 rounded-xl text-base" onClick={convert} disabled={processing}>
-                    {processing ? <><Loader2 className="size-5 animate-spin mr-2" />{status}</> : <><VideoIcon className="size-5 mr-2" />Convert {files.length} Video(s)</>}
-                  </Button>
-                  {processing && (
-                    <Button variant="outline" size="lg" className="h-12 px-6 rounded-xl" onClick={cancel}>
-                      Cancel
-                    </Button>
-                  )}
-                </div>
-
-                {processing && (
-                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-3">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <Loader2 className="size-3.5 animate-spin text-amber-500" />
-                        {status}
-                      </span>
-                      <span className="flex items-center gap-1 tabular-nums">
-                        <Clock className="size-3" />
-                        {Math.floor(elapsed / 60000)}:{String(Math.floor((elapsed % 60000) / 1000)).padStart(2, "0")}
-                      </span>
-                    </div>
-                    <Progress value={Math.max(progress, 2)} className="h-3 max-w-full" />
-                    <p className="text-center text-xs font-medium tabular-nums">{Math.max(progress, 2)}%</p>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </>
-      )}
-
-      {results && (
-        <motion.div className="space-y-6" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1 }}>
-          <div className="text-center py-4">
-            <div className="flex size-20 items-center justify-center rounded-2xl bg-emerald-500/10 mx-auto mb-4">
-              <VideoIcon className="size-10 text-emerald-500" />
+          <div className="space-y-3">
+            <Progress value={Math.max(progress, 3)} className="h-2.5 w-full" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
+              <span>{Math.max(progress, 3)}%</span>
+              <span className="flex items-center gap-1">
+                <Clock className="size-3" />
+                {Math.floor(elapsed / 60000)}:{String(Math.floor((elapsed % 60000) / 1000)).padStart(2, "0")}
+              </span>
             </div>
-            <h2 className="text-xl font-semibold">Converted!</h2>
-            <p className="text-muted-foreground mt-1">{results.length} video(s) ready</p>
           </div>
 
-          <div className="space-y-2 max-h-96 overflow-auto">
-            {results.map(({ name, data }, i) => (
-              <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <VideoIcon className="size-5 text-brand-500 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{name}</p>
-                    <p className="text-xs text-muted-foreground">{(data.byteLength / 1024 / 1024).toFixed(1)} MB</p>
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => handleDownload(data, name)}>
-                  <Download className="size-4" />
-                </Button>
-              </div>
-            ))}
+          {/* File chip */}
+          <div className="inline-flex items-center gap-2 rounded-full bg-muted/60 px-4 py-2 text-sm">
+            <VideoIcon className="size-4 text-muted-foreground" />
+            <span className="max-w-[200px] truncate">{files[0]?.name}</span>
+            {files.length > 1 && (
+              <span className="text-xs text-muted-foreground">+{files.length - 1} more</span>
+            )}
           </div>
 
-          <div className="flex items-center justify-center gap-4">
-            <Button className="gradient-brand text-white h-11 px-6 rounded-xl" onClick={handleDownloadAll}>
-              <Download className="size-4 mr-2" />Download All (ZIP)
-            </Button>
-            <Button variant="outline" className="h-11 px-6 rounded-xl" onClick={() => { setResults(null); setFiles([]) }}>
-              Convert More
-            </Button>
-          </div>
-
-          {status && <p className="text-center text-xs text-muted-foreground">{status}</p>}
+          <Button variant="outline" size="sm" onClick={cancel} className="rounded-full px-6">
+            Cancel
+          </Button>
         </motion.div>
-      )}
+      </div>
+    )
+  }
+
+  /* ═══════ Results State ═══════ */
+  if (results) {
+    return (
+      <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <div className="text-center py-4">
+          <motion.div
+            className="flex size-16 items-center justify-center rounded-2xl bg-emerald-500/10 mx-auto mb-3"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring" }}
+          >
+            <VideoIcon className="size-8 text-emerald-500" />
+          </motion.div>
+          <h2 className="text-xl font-semibold">Ready</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {results.length} file{results.length > 1 ? "s" : ""} converted
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {results.map(({ name, data }, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3 hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <VideoIcon className="size-5 text-emerald-500 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{name}</p>
+                  <p className="text-xs text-muted-foreground">{formatSize(data.byteLength)}</p>
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => handleDownload(data, name)}>
+                <Download className="size-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Button className="gradient-brand text-white h-11 px-6 rounded-xl" onClick={handleDownloadAll}>
+            <Download className="size-4 mr-2" />Download All (ZIP)
+          </Button>
+          <Button
+            variant="outline"
+            className="h-11 px-6 rounded-xl"
+            onClick={() => { setResults(null); setFiles([]) }}
+          >
+            Convert More
+          </Button>
+        </div>
+      </motion.div>
+    )
+  }
+
+  /* ═══════ Upload State ═══════ */
+  return (
+    <div className="space-y-5">
+      {/* Step label */}
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <span className="flex items-center justify-center size-6 rounded-full bg-muted text-xs font-medium">1</span>
+        <span>Select videos</span>
+        <ArrowRight className="size-3.5" />
+        <span className="flex items-center justify-center size-6 rounded-full bg-muted/50 text-xs font-medium">2</span>
+        <span className="text-muted-foreground/60">Choose format & convert</span>
+      </div>
+
+      {/* Upload area — compact when files exist */}
+      <AnimatePresence mode="wait">
+        {files.length === 0 ? (
+          <motion.div key="upload-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <FileUploader
+              onFilesSelected={handleFiles}
+              accept="video/*"
+              multiple
+              label="Drop your video files here"
+              hint="MOV, MP4, WEBM. Processed on a 4-core cloud server."
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="upload-compact"
+            className="space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {/* Compact drop zone */}
+            <FileUploader
+              onFilesSelected={handleFiles}
+              accept="video/*"
+              multiple
+              label="Add more videos"
+              hint=""
+              className="!p-6"
+            />
+
+            {/* File chips */}
+            <div className="space-y-1.5 max-h-44 overflow-y-auto">
+              {files.map((f, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 rounded-lg bg-muted/30 px-3 py-2.5 group hover:bg-muted/50 transition-colors"
+                >
+                  <VideoIcon className="size-4 text-brand-500 shrink-0" />
+                  <span className="text-sm truncate flex-1 font-medium">{f.name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0 tabular-nums">{formatSize(f.size)}</span>
+                  <button
+                    onClick={() => removeFile(i)}
+                    className="opacity-0 group-hover:opacity-100 shrink-0 rounded-full p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Summary + clear */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{files.length} file{files.length > 1 ? "s" : ""} · {formatSize(totalSize)}</span>
+              <button onClick={() => setFiles([])} className="hover:text-destructive transition-colors">Clear all</button>
+            </div>
+
+            {/* Format selector */}
+            <div className="rounded-xl border border-border/40 bg-card/50 p-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Convert to</p>
+              <div className="flex gap-2">
+                {formats.map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => setFormat(f.value)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      format === f.value
+                        ? "bg-brand-500 text-white shadow-md shadow-brand-500/20"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Error */}
+            {errorMsg && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {errorMsg}
+              </div>
+            )}
+
+            {/* Status */}
+            {!processing && status && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
+                {status}
+              </div>
+            )}
+
+            {/* Convert button */}
+            <div className="flex justify-center pt-1">
+              <Button
+                size="lg"
+                className="gradient-brand text-white shadow-xl shadow-brand-500/25 h-12 px-10 rounded-xl text-base gap-2"
+                onClick={convert}
+                disabled={processing}
+              >
+                <Zap className="size-5" />
+                Convert {files.length} Video{files.length > 1 ? "s" : ""}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
